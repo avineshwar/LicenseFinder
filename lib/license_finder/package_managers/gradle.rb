@@ -42,6 +42,22 @@ module LicenseFinder
       File.exist?(File.join(project_path, wrapper)) ? wrapper : gradle
     end
 
+    def subprojects
+      subprojects_command = "#{package_management_command} properties | grep 'subprojects: '"
+      stdout, stderr, status =  Dir.chdir(project_path) { Cmd.run(subprojects_command) }
+      raise "Command '#{subprojects_command}' failed to execute: #{stderr}" unless status.success?
+
+      subproject_names = stdout.gsub(/\s|subprojects:|project|\[|\]|'|:/, '').split(',')
+      return [] if subproject_names.empty?
+
+      subprojects_property = subproject_names.map { |name| ":#{name}:properties" }.join(' ')
+      subprojects_path_command = "#{package_management_command} #{subprojects_property} | grep projectDir"
+      paths_output, stderr, status = Dir.chdir(project_path) { Cmd.run(subprojects_path_command) }
+      raise "Command '#{subprojects_path_command}' failed to execute: #{stderr}" unless status.success?
+
+      paths_output.gsub("projectDir: ", '').split("\n")
+    end
+
     private
 
     def detected_package_path

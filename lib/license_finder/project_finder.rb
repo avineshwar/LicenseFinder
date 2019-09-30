@@ -1,11 +1,14 @@
 # frozen_string_literal: true
 
+require 'pry'
+
 module LicenseFinder
   class ProjectFinder
     def initialize(main_project_path, strict_matching = false)
       @package_managers = LicenseFinder::Scanner::PACKAGE_MANAGERS
       @strict_matching = strict_matching
       @main_project_path = main_project_path
+      @gradle_subprojects_paths = []
     end
 
     def find_projects
@@ -43,9 +46,28 @@ module LicenseFinder
     end
 
     def active_project?(project_path)
-      active_project = @package_managers.map do |pm|
-        pm.new(project_path: project_path, strict_matching: @strict_matching).active?
+      active_project = @package_managers.map do |pm_class|
+        pm = pm_class.new(project_path: project_path, strict_matching: @strict_matching)
+        active=pm.active?
+
+        if (pm_class == Gradle) && active
+          binding.pry
+          if @gradle_subprojects_paths.include?(project_path)
+            binding.pry
+            return false
+          else
+            @gradle_subprojects_paths << pm.subprojects
+            binding.pry
+            return true
+          end
+        else
+          active
+        end
       end
+
+      #Is project root gradle
+      # If yes, track all it's subproject paths
+
       active_project.include?(true)
     end
 

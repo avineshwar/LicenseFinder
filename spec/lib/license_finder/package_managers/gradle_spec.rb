@@ -191,5 +191,64 @@ rootProject.buildFileName = 'build-alt.gradle'
         end
       end
     end
+
+    describe '#subprojects' do
+      before do
+        allow(File).to receive(:exist?).with('/fake/path/./gradlew').and_return true
+        allow(Dir).to receive(:chdir).with(Pathname('/fake/path')).and_yield
+      end
+
+      let(:gradle_properties_output) do
+        "subprojects: [project ':submodule-1', project ':submodule-2']\n"
+      end
+
+      context 'when gradle project contains subprojects' do
+        let(:subproject_dirs) do
+          <<-TEXT
+projectDir: /workspace/LicenseFinder/spec/fixtures/gradle-with-subprojects/submodule-1
+projectDir: /workspace/LicenseFinder/spec/fixtures/gradle-with-subprojects/submodule-2
+          TEXT
+        end
+
+
+        it 'returns all subprojects' do
+          expect(SharedHelpers::Cmd).to receive(:run).with("./gradlew properties | grep 'subprojects: '").and_return([gradle_properties_output, nil, cmd_success])
+          expect(SharedHelpers::Cmd).to receive(:run).with("./gradlew :submodule-1:properties :submodule-2:properties | grep projectDir").and_return([subproject_dirs, nil, cmd_success])
+
+          expect(subject.subprojects).to eq(%w[/workspace/LicenseFinder/spec/fixtures/gradle-with-subprojects/submodule-1 /workspace/LicenseFinder/spec/fixtures/gradle-with-subprojects/submodule-2])
+        end
+      end
+
+      context 'when gradle project contains no subprojects' do
+        let(:gradle_properties_output) do
+          "subprojects: []\n"
+        end
+
+        it 'returns an empty array' do
+          expect(SharedHelpers::Cmd).to receive(:run).with("./gradlew properties | grep 'subprojects: '").and_return([gradle_properties_output, nil, cmd_success])
+
+          expect(subject.subprojects).to eq([])
+        end
+      end
+
+      context 'when subproject command fails' do
+
+        it 'raises an error' do
+          expect(SharedHelpers::Cmd).to receive(:run).with("./gradlew properties | grep 'subprojects: '").and_return([nil, 'error', cmd_failure])
+
+          expect { subject.subprojects }.to raise_error(%r{Command '\./gradlew properties | grep 'subprojects: '' failed to execute: error})
+        end
+      end
+
+      context 'when subproject path command fails' do
+        it 'raises an error' do
+          expect(SharedHelpers::Cmd).to receive(:run).with("./gradlew properties | grep 'subprojects: '").and_return([gradle_properties_output, nil, cmd_success])
+          expect(SharedHelpers::Cmd).to receive(:run).with("./gradlew :submodule-1:properties :submodule-2:properties | grep projectDir").and_return([nil, 'error', cmd_failure])
+
+          expect { subject.subprojects }.to raise_error(%r{Command '\./gradlew :submodule-1:properties :submodule-2:properties \| grep projectDir' failed to execute: error})
+        end
+      end
+
+    end
   end
 end
